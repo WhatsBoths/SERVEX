@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Orders</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+* { box-sizing:border-box; font-family:Inter,system-ui }
+body { margin:0; background:#f7f9fc; color:#111 }
+
+/* NAV */
+.nav {
+  display:flex; gap:12px; padding:16px;
+  justify-content:center; background:white;
+  box-shadow:0 4px 20px rgba(0,0,0,.05);
+}
+.nav-btn {
+  padding:10px 18px; border-radius:12px;
+  background:#f1f4ff; cursor:pointer;
+}
+a{
+  text-decoration: none;
+}
+.nav-btn:hover { background:#4f6cff; color:white }
+
+/* PAGE */
+.container { padding:20px; max-width:1200px; margin:auto }
+h1 { margin-bottom:12px }
+
+/* FILTER */
+.filter {
+  display:flex; gap:12px; flex-wrap:wrap;
+  background:white; padding:16px;
+  border-radius:18px;
+  box-shadow:0 8px 30px rgba(0,0,0,.05);
+}
+.filter input {
+  padding:8px 12px;
+  border-radius:10px;
+  border:1px solid #ddd;
+}
+.filter button {
+  padding:10px 16px;
+  border:none;
+  border-radius:12px;
+  background:#4f6cff;
+  color:white;
+  cursor:pointer;
+}
+.filter button:hover { opacity:.9 }
+
+/* STATS */
+.stats {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:16px; margin:20px 0;
+}
+.stat-card {
+  background:white; padding:18px;
+  border-radius:18px;
+  box-shadow:0 12px 40px rgba(0,0,0,.06);
+}
+.stat-card h3 { margin:0; font-size:14px; opacity:.6 }
+.stat-card p { font-size:28px; margin:6px 0 0 }
+
+/* GRAPH */
+.graphs {
+  background:white;
+  padding:20px;
+  border-radius:18px;
+  box-shadow:0 12px 40px rgba(0,0,0,.06);
+}
+
+/* ORDERS */
+.grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:16px; margin-top:24px;
+}
+.card {
+  background:white; padding:16px;
+  border-radius:18px;
+  box-shadow:0 12px 40px rgba(0,0,0,.06);
+}
+.actions { display:flex; gap:8px; margin-top:10px }
+.actions button {
+  flex:1; border:none; padding:8px;
+  border-radius:10px; cursor:pointer;
+}
+.deliver { background:#e6fffa }
+.cancel { background:#ffe8e8 }
+
+/* LOADER */
+.loader {
+  position:fixed; inset:0;
+  background:rgba(247,249,252,.85);
+  display:flex; align-items:center;
+  justify-content:center;
+  z-index:9999;
+}
+.loader.hidden { display:none }
+.spinner {
+  width:52px; height:52px;
+  border-radius:50%;
+  border:4px solid #e0e6ff;
+  border-top-color:#4f6cff;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+</style>
+</head>
+
+<body>
+
+<nav class="nav">
+  <div class="nav-btn"> <a href="/"> Home </a></div>
+  <div class="nav-btn"> <a href="/"> Menu </a></div>
+  <div class="nav-btn"> <a href="/faqs.html">FAQs</a></div>
+</nav>
+
+<div id="loader" class="loader hidden">
+  <div class="spinner"></div>
+</div>
+
+<section class="container">
+<h1>📦 Orders</h1>
+
+<div class="filter">
+  <input type="date" id="fromDate">
+  <input type="date" id="toDate">
+  <button onclick="applyDateFilter()">Apply</button>
+  <button onclick="toggleCancelled()">Show / Hide Cancelled</button>
+</div>
+
+<div class="stats">
+  <div class="stat-card">
+    <h3>Total Orders</h3>
+    <p id="totalCount">0</p>
+  </div>
+  <div class="stat-card">
+    <h3>Delivered</h3>
+    <p id="deliveredCount">0</p>
+  </div>
+  <div class="stat-card">
+    <h3>Cancelled</h3>
+    <p id="cancelledCount">0</p>
+  </div>
+</div>
+
+<div class="graphs">
+  <canvas id="orderChart"></canvas>
+</div>
+
+<div id="orders" class="grid"></div>
+</section>
+
+<script>
+const BASE = "https://script.google.com/macros/s/AKfycbyfSn1mVLfdw22TA2jwmIVK01uidH7vjJKwYGcxm_yHDJA_0XA2bTf36UtSUdhhWsmLpA/exec"
+const GET_API = BASE + "?type=orders"
+const POST_API = BASE
+
+const loader = document.getElementById("loader")
+const ordersDiv = document.getElementById("orders")
+let orders = []
+let showCancelled = false
+let chart
+
+const show = ()=>loader.classList.remove("hidden")
+const hide = ()=>loader.classList.add("hidden")
+
+async function loadOrders(){
+  show()
+  const res = await fetch(GET_API)
+  orders = await res.json()
+  render()
+  hide()
+}
+
+function toggleCancelled(){
+  showCancelled = !showCancelled
+  render()
+}
+
+function applyDateFilter(){ render() }
+
+function render(){
+  const from = fromDate.value
+  const to = toDate.value
+
+  const list = orders.filter(o=>{
+    if(!showCancelled && o.Status==="Cancelled") return false
+    if(from && o["Order Date"] < from) return false
+    if(to && o["Order Date"] > to) return false
+    return true
+  })
+
+  totalCount.innerText = list.length
+  deliveredCount.innerText = list.filter(o=>o.Status==="Delivered").length
+  cancelledCount.innerText = orders.filter(o=>o.Status==="Cancelled").length
+
+  ordersDiv.innerHTML=""
+  list.forEach(o=>{
+    ordersDiv.innerHTML+=`
+    <div class="card">
+      <strong>${o["Customer Name"]}</strong>
+      <p>${o["Food Item"]} × ${o["Quantity Ordered"]}</p>
+      <p>${o.Address}</p>
+      <p>Status: ${o.Status}</p>
+      <div class="actions">
+        <button class="deliver" onclick="updateOrder(${o.id},'Delivered')">Deliver</button>
+        <button class="cancel" onclick="updateOrder(${o.id},'Cancelled')">Cancel</button>
+      </div>
+    </div>`
+  })
+
+  drawChart(list)
+}
+
+function drawChart(data){
+  if(chart) chart.destroy()
+
+  const map={}
+  data.forEach(o=>{
+    const d=o["Order Date"]
+    map[d]=map[d]||{t:0,d:0,c:0}
+    map[d].t++
+    if(o.Status==="Delivered") map[d].d++
+    if(o.Status==="Cancelled") map[d].c++
+  })
+
+  const labels=Object.keys(map)
+  chart=new Chart(orderChart,{
+    type:"line",
+    data:{
+      labels,
+      datasets:[
+        {label:"Total",data:labels.map(l=>map[l].t),borderColor:"#4f6cff",tension:.4},
+        {label:"Delivered",data:labels.map(l=>map[l].d),borderColor:"#2dd4bf",tension:.4},
+        {label:"Cancelled",data:labels.map(l=>map[l].c),borderColor:"#f87171",tension:.4}
+      ]
+    }
+  })
+}
+
+async function updateOrder(id,status){
+  show()
+  const fd=new FormData()
+  fd.append("action","orderStatus")
+  fd.append("id",id)
+  fd.append("status",status)
+  await fetch(POST_API,{method:"POST",body:fd})
+  await loadOrders()
+}
+
+loadOrders()
+</script>
+
+</body>
+</html>

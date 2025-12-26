@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Menu Manager</title>
+ <link rel="manifest" href="manifest.json">
+<style>
+    * { box-sizing: border-box; font-family: Inter, system-ui; }
+
+body {
+  margin: 0;
+  background: #f7f9fc;
+  color: #111;
+}
+
+.nav {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  justify-content: center;
+  background: white;
+  box-shadow: 0 4px 20px rgba(0,0,0,.05);
+}
+a{
+  text-decoration: none;
+}
+.nav-btn {
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: #f1f4ff;
+  cursor: pointer;
+  transition: .3s;
+}
+
+.nav-btn:hover {
+  background: #4f6cff;
+  color: white;
+}
+
+.container {
+  padding: 20px;
+  max-width: 1100px;
+  margin: auto;
+}
+
+h1 {
+  margin-bottom: 16px;
+}
+
+.add-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 10px;
+  background: white;
+  padding: 16px;
+  border-radius: 18px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.05);
+}
+
+.add-card input, select {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+}
+
+.add-card button {
+  background: #4f6cff;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 18px;
+  cursor: pointer;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: white;
+  padding: 16px;
+  border-radius: 18px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.06);
+  transition: transform .3s, box-shadow .3s;
+  animation: fadeUp .6s ease forwards;
+}
+
+.card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 50px rgba(0,0,0,.1);
+}
+
+.status {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #4f6cff;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.actions button {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.edit { background: #e8edff; }
+.delete { background: #ffe8e8; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.loader {
+  position: fixed;
+  inset: 0;
+  background: rgba(247, 249, 252, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(6px);
+}
+
+.loader.hidden {
+  display: none;
+}
+
+.spinner {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 4px solid #e0e6ff;
+  border-top-color: #4f6cff;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+
+@media (max-width: 768px) {
+  .add-card {
+    /* Change to a single column so items stack vertically */
+    grid-template-columns: 1fr;
+    
+    /* Optional: Adjust gap or padding for smaller screens if needed */
+    gap: 16px; 
+    padding: 12px;
+  }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+ <div class="nav-btn"> <a href="/"> Home </a></div>
+  <div class="nav-btn"> <a href="/orders.html">Orders </a></div>
+  <div class="nav-btn"> <a href="/faqs.html">FAQs</a></div>
+</nav>
+
+<section class="container">
+  <h1>🍽 Menu</h1>
+
+  <div class="add-card">
+    <input id="food" placeholder="Food Item">
+    <input id="qty" type="number" placeholder="Quantity">
+    <input id="price" type="number" placeholder="Price ₹">
+
+    <select id="status">
+      <option>Available</option>
+      <option>Out of Stock</option>
+    </select>
+    <button onclick="addItem()">Add</button>
+  </div>
+
+  <div id="menu" class="grid"></div>
+</section>
+<div id="loader" class="loader hidden">
+  <div class="spinner"></div>
+</div>
+
+ <script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./service-worker.js")
+        .then(reg => console.log("Service Worker registered"))
+        .catch(err => console.error("SW registration failed", err));
+    });
+  }
+</script>
+
+<script>
+
+const loader = document.getElementById("loader")
+
+function showLoader() {
+  loader.classList.remove("hidden")
+}
+
+function hideLoader() {
+  loader.classList.add("hidden")
+}
+
+
+    const API = "https://script.google.com/macros/s/AKfycbyjr2wzsBW5EyINNbGKoLQLBohR3rmx3SWfu5zxeCtroIFx7zKlEf8UQXlJadJejEU-IA/exec"
+
+async function loadMenu() {
+  showLoader()
+  const res = await fetch(API)
+  const data = await res.json()
+
+  const menu = document.getElementById("menu")
+  menu.innerHTML = ""
+
+  data.forEach(item => {
+    menu.innerHTML += `
+      <div class="card">
+        <h3>${item["Food Item"]}</h3>
+        <p>Qty: ${item.Quantity}</p>
+        <p>₹ ${item.Price}</p>
+        <div class="status">${item.Status}</div>
+        <div class="actions">
+          <button class="edit" onclick="editItem(${item.id})">Edit</button>
+          <button class="delete" onclick="deleteItem(${item.id})">Delete</button>
+        </div>
+      </div>
+    `
+  })
+
+  hideLoader()
+}
+
+async function addItem() {
+  showLoader()
+
+  await fetch(API, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "add",
+      "Food Item": food.value,
+      "Quantity": qty.value,
+      "Status": status.value,
+      "Price": price.value
+    })
+  })
+
+  await loadMenu()
+}
+
+async function editItem(id) {
+  const name = prompt("Food name")
+  const qty = prompt("Quantity")
+  const status = prompt("Status")
+  const price = prompt("Price")
+
+  if (!name) return
+
+  showLoader()
+
+  await fetch(API, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "edit",
+      id,
+      "Food Item": name,
+      "Quantity": qty,
+      "Status": status,
+      "Price": price
+    })
+  })
+
+  await loadMenu()
+}
+
+async function deleteItem(id) {
+  if (!confirm("Delete item?")) return
+
+  showLoader()
+
+  await fetch(API, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "delete",
+      id
+    })
+  })
+
+  await loadMenu()
+}
+
+loadMenu()
+
+</script>
+
+
+
+</body>
+</html>
